@@ -1,3 +1,5 @@
 PyFunctional
 beautifulsoup4
 click
+requests
+dacite

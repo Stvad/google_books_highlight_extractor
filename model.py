@@ -28,13 +28,34 @@ class Highlight:
     date: datetime
     color: Color
 
+    @property
+    def markdown_link(self):
+        return f'[{self.book}: {self.page}]({self.link})'
+
+    @property
+    def color_attribute(self):
+        return f'color::#{self.color.name.lower()}'
+
+    @property
+    def date_attribute(self):
+        return f'date::[[{roam_date(self.date)}]]'
+
+    def as_roam_block_hierarchy(self):
+        return {
+            self.text: ([{self.note: []}] if self.note else []) + [
+                {self.markdown_link: []},
+                {self.date_attribute: []},
+                {self.color_attribute: []},
+            ]
+        }
+
     def as_roam_markdown(self):
         return seq(
             f' - {self.text}',
             f'   - {self.note}' if self.note else None,
-            f'   - [{self.book}: {self.page}]({self.link})',
-            f'   - date::[[{roam_date(self.date)}]]',
-            f'   - color::#{self.color.name.lower()}'
+            f'   - {self.markdown_link}',
+            f'   - {self.date_attribute}',
+            f'   - {self.color_attribute}'
         ).filter(lambda it: it is not None).make_string('\n')
 
     def as_anki_csv_row(self):
