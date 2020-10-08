@@ -1,6 +1,8 @@
 import csv
+import dateparser
+import functools
 import logging as log
-from datetime import datetime
+from datetime import datetime, date
 from sys import stdout
 from typing import IO, Iterable
 
@@ -31,30 +33,37 @@ def cli():
     pass
 
 
+def common_params(func):
+    @click.argument('file', type=click.File())
+    @click.option('-b', '--book-name', required=True, help='Book name, would be appended to the source reference')
+    @click.option('--since', default='0', help='Starting point to take highlights from (supports natural language)')
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 @cli.command(help='Output results locally')
-@click.argument('file', type=click.File())
-@click.option('-b', '--book-name', required=True, help='Book name, would be appended to the source reference')
+@common_params
 @click.option('-o', '--output', default=stdout, help="Output file", type=click.File(mode="w"))
 @click.option('-t', '--export-type', default='md', type=click.Choice(save_map.keys()))
-def local(file, book_name, output, export_type):
-    highlights = find_highlights(file, book_name)
+def local(file, book_name, since, output, export_type):
+    highlights = find_highlights(file, book_name, dateparser.parse(since).date())
 
     save_map[export_type](output, highlights)
 
 
 @cli.command(help='Store highlights to a Roam Graph')
-@click.argument('file', type=click.File())
-@click.option('-b', '--book-name', required=True, help='Book name, would be appended to the source reference')
+@common_params
 @click.option('-g', '--graph', required=True, help='The name of the Roam graph to store highlights to')
 @click.option('--api-key', required=True, help='Roam API key', envvar='ROAM_API_KEY')
 @click.option('--graph-token', required=True, help='Roam Graph token', envvar='ROAM_GRAPH_TOKEN')
-def roam(file, book_name, graph, api_key, graph_token):
-    print(api_key)
-    highlights = find_highlights(file, book_name).take(3)  # todo testing
+def roam(file, book_name, since, graph, api_key, graph_token):
+    highlights = find_highlights(file, book_name, dateparser.parse(since).date())
 
     client = Roam(graph, api_key, graph_token)
     RoamSaver(client).save(book_name, highlights)
-    # todo filtering by "since date"
 
 
 class RoamSaver:
@@ -92,7 +101,7 @@ class RoamSaver:
         return self.roam.create_block(page.uid, {self.header_block_name: []})[0]
 
 
-def find_highlights(file, book_name: str):
+def find_highlights(file, book_name: str, since: date = date.min):
     """
     The extraction is based on the structure of the HTML file the export from Google Docs would give you for the
     document containing the notes. 1 cell table container, inside of which there is another table that contains cells
@@ -104,7 +113,8 @@ def find_highlights(file, book_name: str):
             .map(lambda tag: tag.find_all(rowspan=1, colspan=1))
             .filter(lambda quote_tags: len(quote_tags) != 0)
             .map(lambda tags: parse_highlight(*tags, book=book_name))
-            .filter(lambda it: it is not None))
+            .filter(lambda it: it is not None)
+            .filter(lambda it: it.date >= since))
 
 
 def parse_color(color_container: Tag) -> Color:
@@ -117,14 +127,14 @@ def parse_color(color_container: Tag) -> Color:
 
 def parse_highlight(color_container, quote, link, book):
     try:
-        text, *note, date = quote.find_all('span')
+        text, *note, date_tag = quote.find_all('span')
         link_tag: Tag = link.find('a')
         return Highlight(book,
                          text.get_text(),
                          extract_note(note),
                          link_tag['href'],
                          link_tag.string,
-                         datetime.strptime(date.get_text(), "%B %d, %Y"),
+                         datetime.strptime(date_tag.get_text(), "%B %d, %Y").date(),
                          parse_color(color_container))
     except Exception as e:
         print(quote, e)

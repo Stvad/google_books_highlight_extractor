@@ -1,12 +1,12 @@
 import json
 import logging as log
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional, Iterable
-from functional import seq
+from datetime import date
+from typing import Optional, List
 
 import requests
 from dacite import from_dict
+from functional import seq
 
 log.basicConfig(level=log.INFO)
 
@@ -76,7 +76,7 @@ class Roam:
         result = json.loads(response.text)['success']
         return result
 
-    def query(self, query: str) -> Iterable:
+    def query(self, query: str) -> List:
         return seq(self._send_request('q', query=query)).map(lambda it: it[0]).to_list()
 
     def pull(self, selector, uid):
@@ -128,12 +128,12 @@ class Roam:
         return result, {result.uid: [self.create_block(result.uid, child) for child in reversed(block[string])]}
 
 
-def strftime(date_format, date):
+def strftime(date_format, date_to_format: date):
     def suffix(day):
         return 'th' if 11 <= day <= 13 else {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
 
-    return date.strftime(date_format).replace('{S}', str(date.day) + suffix(date.day))
+    return date_to_format.strftime(date_format).replace('{S}', str(date_to_format.day) + suffix(date_to_format.day))
 
 
-def roam_date(date: datetime):
-    return strftime("%B {S}, %Y", date)
+def roam_date(date_to_format: date):
+    return strftime("%B {S}, %Y", date_to_format)

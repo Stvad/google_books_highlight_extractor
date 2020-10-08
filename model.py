@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date
 from enum import Enum
 
 from bs4 import BeautifulSoup
@@ -25,7 +25,7 @@ class Highlight:
     note: str
     link: str
     page: str
-    date: datetime
+    date: date
     color: Color
 
     @property
@@ -62,4 +62,4 @@ class Highlight:
         soup = BeautifulSoup()
         link = soup.new_tag('a', href=self.link, string=f'{self.book}: {self.page}')
 
-        return [self.text, self.note, link, str(self.date.date()), self.color.name.lower()]
+        return [self.text, self.note, link, str(self.date), self.color.name.lower()]
